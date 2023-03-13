@@ -19,9 +19,8 @@ import qualified    Data.Void as Void
 -- 
 data Conveyor i o s u m r
     -- |
-    -- Convey a part on the belt downstream.
-    --
-    -- The two fields of the constructor are respectively:
+    -- Convey a part on the belt downstream. The two fields of the
+    -- constructor are respectively:
     --
     --  (1) the part on the conveyor belt to be moved downstream; and
     --
