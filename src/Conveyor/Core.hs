@@ -22,7 +22,9 @@ data Conveyor i o s u m r
     -- Convey a part downstream, that a machine placed on the belt.
     --
     -- The two fields of the constructor are respectively:
+    --
     --  (1) the part on the conveyor belt to be moved downstream; and
+    --
     --  (2) the state of the belt after moving the part.
     --
     = Convey o (Conveyor i o s u m r)
