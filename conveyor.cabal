@@ -22,6 +22,7 @@ library
 
     exposed-modules:
         Conveyor.Core
+        Conveyor.Codensity
 
     ghc-options: -Wall -Wcompat
     CPP-Options: -DCABAL

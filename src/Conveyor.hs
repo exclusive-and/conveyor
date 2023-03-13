@@ -1,7 +1,6 @@
 
-module Conveyor (module Conveyor.Core) where
+module Conveyor (module Conveyor.Codensity) where
 
 import Conveyor.Core
+import Conveyor.Codensity
 
--- TODO: Export Codensity by default
--- import Conveyor.Codensity
