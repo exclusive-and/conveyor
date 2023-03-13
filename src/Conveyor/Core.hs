@@ -65,8 +65,8 @@ data Conveyor i o s u m r
     | Finished r
     
     -- |
-    -- Record a monadic action that needs to be performed when running
-    -- the conveyor.
+    -- Record a monadic action that needs to be performed when
+    -- running the conveyor.
     -- 
     | ConveyorM (m (Conveyor i o s u m r))
 
