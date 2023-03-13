@@ -7,6 +7,8 @@
 module Conveyor.Core where
 
 import              Control.Monad (ap, liftM, (>=>))
+import              Control.Monad.IO.Class
+import              Control.Monad.Trans.Class
 import              Data.Void (Void)
 import qualified    Data.Void as Void
 
@@ -74,14 +76,26 @@ data Conveyor i o s u m r
 
 instance Monad m => Functor (Conveyor i o s u m) where
     fmap = liftM
+    {-# INLINE fmap #-}
 
 instance Monad m => Applicative (Conveyor i o s u m) where
     pure  = Finished
+    {-# INLINE pure #-}
     (<*>) = ap
+    {-# INLINE (<*>) #-}
 
 instance Monad m => Monad (Conveyor i o s u m) where
     return = pure
+    {-# INLINE return #-}
     (>>=)  = bindConveyors
+
+instance MonadTrans (Conveyor i o s u) where
+    lift m = ConveyorM (Finished <$> m)
+    {-# INLINE [1] lift #-}
+    
+instance MonadIO m => MonadIO (Conveyor i o s u m) where
+    liftIO = lift . liftIO
+    {-# INLINE liftIO #-}
 
 
 ---------------------------------------------------------------------
