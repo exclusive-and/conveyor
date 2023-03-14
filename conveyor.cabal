@@ -21,6 +21,7 @@ library
     hs-source-dirs: src
 
     exposed-modules:
+        Conveyor
         Conveyor.Core
         Conveyor.Codensity
 
