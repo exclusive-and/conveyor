@@ -192,6 +192,24 @@ runConveyor conveyor = case conveyor of
     Finished  result    -> pure result
     ConveyorM m         -> m >>= runConveyor
 
+-- |
+-- Input any spare parts back into the conveyor process.
+--
+reuseSpares :: Monad m => Conveyor i o i u m r -> Conveyor i o s u m r
+reuseSpares = go [] where
+    go spares (Convey o conveyor)
+        = Convey o (go spares conveyor)
+    go spares (Spare s conveyor)
+        = go (s : spares) conveyor
+    go (s : spares) (Machine onInput _)
+        = go spares $ onInput s
+    go [] (Machine onInput onFinal)
+        = Machine (go [] . onInput) (go [] . onFinal)
+    go _spares (Finished r)
+        = Finished r
+    go spares (ConveyorM m)
+        = ConveyorM (go spares <$> m)
+
 
 ---------------------------------------------------------------------
 -- Conveyor Combinators
