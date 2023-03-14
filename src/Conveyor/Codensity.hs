@@ -170,13 +170,17 @@ runConveyor (ConveyorT c) =
 -- Codensity-Transformed Combinators
 
 -- |
--- Yield a result onto a conveyor, to be brought downstream.
+-- Place a part onto the conveyor, so that the conveyor can carry it
+-- downstream for the next machine to consume.
 --     
 yield :: o -> ConveyorT i o m ()
 yield o = ConveyorT $ \rest -> C.Convey o (rest ())
 
 -- |
--- Await an input from a conveyor upstream.
+-- Await an input from an upstream conveyor.
+-- 
+-- Returns @Just i@ when it receives input @i@ from upstream. If the
+-- upstream conveyor finishes, it returns @Nothing@.
 -- 
 await :: ConveyorT i o m (Maybe i)
 await = ConveyorT $ \rest ->

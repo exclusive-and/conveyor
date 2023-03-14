@@ -237,13 +237,17 @@ reuseSpares = go [] where
 -- Conveyor Combinators
 
 -- |
--- Yield a result onto a conveyor, to be brought downstream.
+-- Place a part onto the conveyor, so that the conveyor can carry it
+-- downstream for the next machine to consume.
 --     
 yield :: o -> Conveyor i o s u m ()
 yield o = Convey o (Finished ())
 
 -- |
--- Await an input from a conveyor upstream.
+-- Await an input from an upstream conveyor.
+-- 
+-- Returns @Just i@ when it receives input @i@ from upstream. If the
+-- upstream conveyor finishes, it returns @Nothing@.
 -- 
 await :: Conveyor i o s u m (Maybe i)
 await = Machine onInput onFinal where
