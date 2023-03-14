@@ -121,6 +121,28 @@ instance MonadState s m => MonadState s (Conveyor i o l u m) where
 
 
 ---------------------------------------------------------------------
+-- Conveyor Combinators
+
+-- |
+-- Place a part onto the conveyor, so that the conveyor can carry it
+-- downstream for the next machine to consume.
+--
+yield :: o -> Conveyor i o s u m ()
+yield o = Convey o (Finished ())
+
+-- |
+-- Await an input from an upstream conveyor.
+--
+-- Returns @Just i@ when it receives input @i@ from upstream. If the
+-- upstream conveyor finishes, it returns @Nothing@.
+--
+await :: Conveyor i o s u m (Maybe i)
+await = Machine onInput onFinal where
+    onInput = Finished . Just
+    onFinal = const $ Finished Nothing
+
+
+---------------------------------------------------------------------
 -- Conveyor Composition and Fusion
 
 -- |
@@ -232,25 +254,4 @@ reuseSpares = go [] where
     go spares (ConveyorM m)
         = ConveyorM (go spares <$> m)
 
-
----------------------------------------------------------------------
--- Conveyor Combinators
-
--- |
--- Place a part onto the conveyor, so that the conveyor can carry it
--- downstream for the next machine to consume.
---     
-yield :: o -> Conveyor i o s u m ()
-yield o = Convey o (Finished ())
-
--- |
--- Await an input from an upstream conveyor.
--- 
--- Returns @Just i@ when it receives input @i@ from upstream. If the
--- upstream conveyor finishes, it returns @Nothing@.
--- 
-await :: Conveyor i o s u m (Maybe i)
-await = Machine onInput onFinal where
-    onInput = Finished . Just
-    onFinal = const $ Finished Nothing
 
