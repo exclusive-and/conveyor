@@ -4,7 +4,17 @@
 -- Module       : Conveyor.Core
 -- Description  : Move Parts Through a Linear Work Process
 -- 
-module Conveyor.Core where
+module Conveyor.Core
+    ( -- * Conveyor Type
+      Conveyor (..)
+      -- * Primitive Combinators
+    , yield
+    , await
+      -- * Composition
+    , fuseConveyors
+    , runConveyor
+    , reuseSpares
+    ) where
 
 import              Control.Monad (ap, liftM, (>=>))
 import              Control.Monad.IO.Class
