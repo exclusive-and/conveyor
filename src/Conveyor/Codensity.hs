@@ -1,5 +1,6 @@
 
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 ---------------------------------------------------------------------
 -- |
@@ -22,6 +23,7 @@ import qualified    Conveyor.Core as C
 
 import              Control.Monad (ap)
 import              Control.Monad.IO.Class
+import              Control.Monad.State.Class
 import              Control.Monad.Trans.Class
 import              Data.Void (Void)
 
@@ -52,12 +54,21 @@ instance Monad (ConveyorT i o m) where
     ConveyorT f >>= g =
         ConveyorT $ \cont -> f $ \a -> unConveyorT (g a) cont
 
+
+---------------------------------------------------------------------
+-- Codensity Monad Transformer Instances
+        
 instance MonadTrans (ConveyorT i o) where
     lift m = ConveyorT $ \rest -> C.ConveyorM (rest <$> m)
 
 instance MonadIO m => MonadIO (ConveyorT i o m) where
     liftIO = lift . liftIO
-    
+
+instance MonadState s m => MonadState s (ConveyorT i o m) where
+    get   = lift get
+    put   = lift . put
+    state = lift . state
+
 
 ---------------------------------------------------------------------
 -- Conveyor Fusion

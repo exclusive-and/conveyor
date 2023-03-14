@@ -1,4 +1,6 @@
 
+{-# LANGUAGE UndecidableInstances #-}
+
 ---------------------------------------------------------------------
 -- |
 -- Module       : Conveyor.Core
@@ -18,6 +20,7 @@ module Conveyor.Core
 
 import              Control.Monad (ap, liftM, (>=>))
 import              Control.Monad.IO.Class
+import              Control.Monad.State.Class
 import              Control.Monad.Trans.Class
 import              Data.Void (Void)
 import qualified    Data.Void as Void
@@ -99,6 +102,10 @@ instance Monad m => Monad (Conveyor i o s u m) where
     {-# INLINE return #-}
     (>>=)  = bindConveyors
 
+
+---------------------------------------------------------------------
+-- Conveyor Monad Transformer Instances
+
 instance MonadTrans (Conveyor i o s u) where
     lift m = ConveyorM (Finished <$> m)
     {-# INLINE [1] lift #-}
@@ -106,6 +113,11 @@ instance MonadTrans (Conveyor i o s u) where
 instance MonadIO m => MonadIO (Conveyor i o s u m) where
     liftIO = lift . liftIO
     {-# INLINE liftIO #-}
+
+instance MonadState s m => MonadState s (Conveyor i o l u m) where
+    get   = lift get
+    put   = lift . put
+    state = lift . state
 
 
 ---------------------------------------------------------------------
