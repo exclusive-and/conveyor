@@ -2,11 +2,11 @@ Cabal-version:  2.2
 Name:           conveyor
 Version:        0.1.0
 Synopsis:       Conveyor Belts for Industrial-Grade Pipelines
-License:        BSD-2-Clause
+License:        BSD3
 License-file:   LICENSE
 Author:         Simon Lovell Bart
-Maintainer:     Simon Lovell Bart
-Category:
+Maintainer:     exclusiveandgate@gmail.com
+Category:       Control, Conveyors
 Build-type:     Simple
 
 common common-options
@@ -35,6 +35,6 @@ library
         UndecidableInstances
 
     build-depends:
-        base,
-        mtl,
-        transformers
+        base            >= 4.11     && < 5,
+        mtl             >= 2.1.2    && < 3,
+        transformers    >= 0.5.2.0  && < 0.7
