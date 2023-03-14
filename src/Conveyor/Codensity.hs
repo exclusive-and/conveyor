@@ -21,6 +21,8 @@ module Conveyor.Codensity
 import qualified    Conveyor.Core as C
 
 import              Control.Monad (ap)
+import              Control.Monad.IO.Class
+import              Control.Monad.Trans.Class
 import              Data.Void (Void)
 
 
@@ -50,6 +52,12 @@ instance Monad (ConveyorT i o m) where
     ConveyorT f >>= g =
         ConveyorT $ \cont -> f $ \a -> unConveyorT (g a) cont
 
+instance MonadTrans (ConveyorT i o) where
+    lift m = ConveyorT $ \rest -> C.ConveyorM (rest <$> m)
+
+instance MonadIO m => MonadIO (ConveyorT i o m) where
+    liftIO = lift . liftIO
+    
 
 ---------------------------------------------------------------------
 -- Conveyor Fusion
