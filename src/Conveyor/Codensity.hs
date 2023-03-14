@@ -45,8 +45,11 @@ instance Functor (ConveyorT i o m) where
     
 instance Applicative (ConveyorT i o m) where
     pure x = ConveyorT ($ x)
+    {-# INLINE pure #-}
     (<*>)  = ap
+    {-# INLINE (<*>) #-}
     (*>)   = (>>)
+    {-# INLINE (*>) #-}
 
 instance Monad (ConveyorT i o m) where
     return = pure
@@ -60,9 +63,11 @@ instance Monad (ConveyorT i o m) where
         
 instance MonadTrans (ConveyorT i o) where
     lift m = ConveyorT $ \rest -> C.ConveyorM (rest <$> m)
+    {-# INLINE [1] lift #-}
 
 instance MonadIO m => MonadIO (ConveyorT i o m) where
     liftIO = lift . liftIO
+    {-# INLINE liftIO #-}
 
 instance MonadState s m => MonadState s (ConveyorT i o m) where
     get   = lift get
@@ -154,6 +159,9 @@ fuse (ConveyorT upstream) (ConveyorT downstream) = ConveyorT $ \rest ->
 -- Running Codensity Conveyors
 
 runConveyor :: Monad m => ConveyorT () Void m r -> m r
+
+{-# INLINE [0] runConveyor #-}
+
 runConveyor (ConveyorT c) =
     C.runConveyor $ C.reuseSpares $ c C.Finished
 
