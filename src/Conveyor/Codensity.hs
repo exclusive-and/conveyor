@@ -6,11 +6,22 @@
 -- Module       : Conveyor.Codensity
 -- Description  : Codensity-Transformed Conveyors for Better Performance
 -- 
-module Conveyor.Codensity where
+module Conveyor.Codensity
+    ( -- * Codensity Conveyor
+      ConveyorT (..)
+      -- * Primitive Combinators
+    , yield
+    , await
+      -- * Composition and Fusion
+    , fuse
+    , (.|)
+    , runConveyor
+    ) where
 
 import qualified    Conveyor.Core as C
 
 import              Control.Monad (ap)
+import              Data.Void (Void)
 
 
 ---------------------------------------------------------------------
@@ -118,6 +129,14 @@ fuse (ConveyorT upstream) (ConveyorT downstream) = ConveyorT $ \rest ->
 {-# INLINE (.|) #-}
     
 (.|) = fuse
+
+
+---------------------------------------------------------------------
+-- Running Codensity Conveyors
+
+runConveyor :: Monad m => ConveyorT () Void m r -> m r
+runConveyor (ConveyorT c) =
+    C.runConveyor $ C.reuseSpares $ c C.Finished
 
 
 ---------------------------------------------------------------------
