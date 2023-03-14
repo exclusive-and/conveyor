@@ -2,12 +2,15 @@ Cabal-version:  2.2
 Name:           conveyor
 Version:        0.1.0
 Synopsis:       Conveyor Belts for Industrial-Grade Pipelines
-License:        BSD3
+License:        BSD-3-Clause
 License-file:   LICENSE
 Author:         Simon Lovell Bart
 Maintainer:     exclusiveandgate@gmail.com
 Category:       Control, Conveyors
 Build-type:     Simple
+Source-Repository head
+    Type: git
+    Location: https://github.com/exclusive-and/conveyor
 
 common common-options
     default-language: Haskell2010
