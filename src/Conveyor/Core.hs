@@ -12,6 +12,7 @@ module Conveyor.Core
       -- * Primitive Combinators
     , yield
     , await
+    , mapC
       -- * Composition
     , fuseConveyors
     , runConveyor
@@ -22,6 +23,7 @@ import              Control.Monad (ap, liftM, (>=>))
 import              Control.Monad.IO.Class
 import              Control.Monad.State.Class
 import              Control.Monad.Trans.Class
+import              Data.Foldable (traverse_)
 import              Data.Void (Void)
 import qualified    Data.Void as Void
 
@@ -140,6 +142,12 @@ await :: Conveyor i o s u m (Maybe i)
 await = Machine onInput onFinal where
     onInput = Finished . Just
     onFinal = const $ Finished Nothing
+
+-- |
+-- Apply a function to every value in a stream.
+--
+mapC :: Monad m => (i -> o) -> Conveyor i o s u m ()
+mapC f = await >>= traverse_ (yield . f)
 
 
 ---------------------------------------------------------------------

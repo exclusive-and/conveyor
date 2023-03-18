@@ -13,6 +13,7 @@ module Conveyor.Codensity
       -- * Primitive Combinators
     , yield
     , await
+    , mapC
       -- * Composition and Fusion
     , fuse
     , (.|)
@@ -25,6 +26,7 @@ import              Control.Monad (ap)
 import              Control.Monad.IO.Class
 import              Control.Monad.State.Class
 import              Control.Monad.Trans.Class
+import              Data.Foldable (traverse_)
 import              Data.Void (Void)
 
 
@@ -98,6 +100,12 @@ await = ConveyorT $ \rest ->
     onFinal = const $ rest Nothing
   in
     C.Machine onInput onFinal
+
+-- |
+-- Apply a function to every value in a stream.
+--
+mapC :: Monad m => (i -> o) -> ConveyorT i o m ()
+mapC f = await >>= traverse_ (yield . f)
 
 
 ---------------------------------------------------------------------
