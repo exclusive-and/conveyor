@@ -155,7 +155,7 @@ mapC f = await >>= traverse_ (yield . f)
 -- a stream. If the function returns @Just a@, yield @a@. Otherwise
 -- don't yield anything.
 --
-mapMaybeC :: Monad m => (i -> Maybe o) -> Convyeor i o s u m ()
+mapMaybeC :: Monad m => (i -> Maybe o) -> Conveyor i o s u m ()
 mapMaybeC f =
     await >>= traverse_ (traverse_ yield . f)
 
