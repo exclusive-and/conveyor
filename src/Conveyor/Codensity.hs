@@ -14,6 +14,7 @@ module Conveyor.Codensity
     , yield
     , await
     , mapC
+    , mapMaybeC
       -- * Composition and Fusion
     , fuse
     , (.|)
@@ -106,6 +107,15 @@ await = ConveyorT $ \rest ->
 --
 mapC :: Monad m => (i -> o) -> ConveyorT i o m ()
 mapC f = await >>= traverse_ (yield . f)
+
+-- |
+-- Apply a function which returns a 'Maybe' result to every value in
+-- a stream. If the function returns @Just a@, yield @a@. Otherwise
+-- don't yield anything.
+--
+mapMaybeC :: Monad m => (i -> Maybe o) -> Convyeor i o s u m ()
+mapMaybeC f =
+    await >>= traverse_ (traverse_ yield . f)
 
 
 ---------------------------------------------------------------------

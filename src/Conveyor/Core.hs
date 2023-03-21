@@ -13,6 +13,7 @@ module Conveyor.Core
     , yield
     , await
     , mapC
+    , mapMaybeC
       -- * Composition
     , fuseConveyors
     , runConveyor
@@ -148,6 +149,15 @@ await = Machine onInput onFinal where
 --
 mapC :: Monad m => (i -> o) -> Conveyor i o s u m ()
 mapC f = await >>= traverse_ (yield . f)
+
+-- |
+-- Apply a function which returns a 'Maybe' result to every value in
+-- a stream. If the function returns @Just a@, yield @a@. Otherwise
+-- don't yield anything.
+--
+mapMaybeC :: Monad m => (i -> Maybe o) -> Convyeor i o s u m ()
+mapMaybeC f =
+    await >>= traverse_ (traverse_ yield . f)
 
 
 ---------------------------------------------------------------------
