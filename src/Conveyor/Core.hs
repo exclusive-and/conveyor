@@ -145,10 +145,22 @@ await = Machine onInput onFinal where
     onFinal = const $ Finished Nothing
 
 -- |
+-- Framework for building simple machines. Runs the same function on
+-- every value in the stream. Terminates when we're out of work. 
+--
+machineFrame
+    :: Monad m => (i -> Conveyor i o s u m r) -> Conveyor i o s u m ()
+
+machineFrame f = go where
+    go = Machine (\i -> f i >> go) (const $ pure ())
+
+-- |
 -- Apply a function to every value in a stream.
 --
 mapC :: Monad m => (i -> o) -> Conveyor i o s u m ()
-mapC f = await >>= traverse_ (yield . f)
+mapC f = machineFrame (yield . f)
+
+{-# INLINE mapC #-}
 
 -- |
 -- Apply a function which returns a 'Maybe' result to every value in
@@ -156,8 +168,9 @@ mapC f = await >>= traverse_ (yield . f)
 -- don't yield anything.
 --
 mapMaybeC :: Monad m => (i -> Maybe o) -> Conveyor i o s u m ()
-mapMaybeC f =
-    await >>= traverse_ (traverse_ yield . f)
+mapMaybeC f = machineFrame (traverse_ yield . f)
+
+{-# INLINE mapMaybeC #-}
 
 
 ---------------------------------------------------------------------
