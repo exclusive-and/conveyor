@@ -12,16 +12,18 @@ module Conveyor.Core
       -- * Primitive Combinators
     , yield
     , await
-    , mapC
     , machineFrame
+      -- * Conveyor Fusion
+    , fuseConveyors
+      -- * Running Conveyors
+    , runConveyor
+    , reuseSpares
+    -- * Pure Combinators
+    , mapC
     , mapMaybeC
       -- * Monadic Combinators
     , mapMC
     , mapMaybeMC
-      -- * Composition
-    , fuseConveyors
-    , runConveyor
-    , reuseSpares
     ) where
 
 import              Control.Monad (ap, liftM, (>=>))
@@ -162,51 +164,16 @@ machineFrame
 machineFrame f = go where
     go = Machine (\i -> f i >> go) (const $ pure ())
 
--- |
--- Apply a function to every value in a stream.
---
-mapC :: Monad m => (i -> o) -> Conveyor i o s u m ()
-mapC f = machineFrame (yield . f)
-
-{-# INLINE mapC #-}
-
--- |
--- Apply a function which returns a 'Maybe' result to every value in
--- a stream. If the function returns @Just a@, yield @a@. Otherwise
--- don't yield anything.
---
-mapMaybeC :: Monad m => (i -> Maybe o) -> Conveyor i o s u m ()
-mapMaybeC f = machineFrame (traverse_ yield . f)
-
-{-# INLINE mapMaybeC #-}
-
--- |
--- Apply a monadic function to every value in a stream.
---
-mapMC :: Monad m => (i -> m o) -> Conveyor i o s u m ()
-mapMC f = machineFrame (lift . f >=> yield)
-
-{-# INLINE mapMC #-}
-
--- |
--- Apply a monadic function which returns a 'Maybe' result to every
--- value in a stream.
---
-mapMaybeMC :: Monad m => (i -> m (Maybe o)) -> Conveyor i o s u m ()
-mapMaybeMC f = machineFrame (lift . f >=> traverse_ yield)
-
-{-# INLINE mapMaybeMC #-}
-
 
 ---------------------------------------------------------------------
 -- Conveyor Composition and Fusion
 
 -- |
 -- Connect two conveyors end-to-end.
--- 
+--
 -- Runs the first conveyor until it produces a 'Finished' result, and
 -- feeds that result into the input of the next conveyor function.
--- 
+--
 bindConveyors
     :: Monad m
     => Conveyor i o s u m result0
@@ -228,16 +195,16 @@ bindConveyors conveyor machine = go conveyor where
 
 -- |
 -- Fuse two conveyors (conveyor A and conveyor B) into one.
--- 
+--
 -- Runs conveyor B, feeding parts from conveyor A as inputs as needed.
 -- Also runs conveyor A as needed to feed parts into conveyor B.
--- 
+--
 fuseConveyors
     :: Monad m
     => Conveyor a b spare r0 m r1
     -> Conveyor b c Void r1 m r2
     -> Conveyor a c spare r0 m r2
-    
+
 fuseConveyors = runConveyorB where
     runConveyorB conveyorA conveyorB = case conveyorB of
         -- Convey parts from conveyor B downstream and continue.
@@ -254,7 +221,7 @@ fuseConveyors = runConveyorB where
         ConveyorM m
             -> ConveyorM (continueB <$> m)
       where continueB = runConveyorB conveyorA
-    
+
     runConveyorA onInput onFinal conveyorA = case conveyorA of
         -- Convey a part from conveyor A into a machine on conveyor B.
         Convey o conveyorA'
@@ -272,19 +239,19 @@ fuseConveyors = runConveyorB where
         ConveyorM m
             -> ConveyorM (continueA <$> m)
       where continueA = runConveyorA onInput onFinal
-        
+
 
 ---------------------------------------------------------------------
 -- Running Conveyors
 
 -- |
 -- Runs a conveyor until it produces a finished result.
--- 
+--
 -- NOTE: When running a conveyor in isolation like this, it's important
 -- that it doesn't accept any inputs or convey any results besides the
 -- finished product. This is because there are no conveyors to feed this
 -- one with inputs, and none to receive its outputs.
--- 
+--
 runConveyor :: Monad m => Conveyor () Void Void () m r -> m r
 runConveyor conveyor = case conveyor of
     Convey    o _       -> Void.absurd o
@@ -316,3 +283,44 @@ reuseSpares = go [] where
         = ConveyorM (go spares <$> m)
 
 
+---------------------------------------------------------------------
+-- Pure Combinators
+
+-- |
+-- Apply a function to every value in a stream.
+--
+mapC :: Monad m => (i -> o) -> Conveyor i o s u m ()
+mapC f = machineFrame (yield . f)
+
+{-# INLINE mapC #-}
+
+-- |
+-- Apply a function which returns a 'Maybe' result to every value in
+-- a stream. If the function returns @Just a@, yield @a@. Otherwise
+-- don't yield anything.
+--
+mapMaybeC :: Monad m => (i -> Maybe o) -> Conveyor i o s u m ()
+mapMaybeC f = machineFrame (traverse_ yield . f)
+
+{-# INLINE mapMaybeC #-}
+
+
+---------------------------------------------------------------------
+-- Monadic Combinators
+
+-- |
+-- Apply a monadic function to every value in a stream.
+--
+mapMC :: Monad m => (i -> m o) -> Conveyor i o s u m ()
+mapMC f = machineFrame (lift . f >=> yield)
+
+{-# INLINE mapMC #-}
+
+-- |
+-- Apply a monadic function which returns a 'Maybe' result to every
+-- value in a stream.
+--
+mapMaybeMC :: Monad m => (i -> m (Maybe o)) -> Conveyor i o s u m ()
+mapMaybeMC f = machineFrame (lift . f >=> traverse_ yield)
+
+{-# INLINE mapMaybeMC #-}
