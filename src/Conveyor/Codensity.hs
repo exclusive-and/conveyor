@@ -13,8 +13,12 @@ module Conveyor.Codensity
       -- * Primitive Combinators
     , yield
     , await
+    , machineFrame
     , mapC
     , mapMaybeC
+      -- * Monadic Combinators
+    , mapMC
+    , mapMaybeMC
       -- * Composition and Fusion
     , fuse
     , (.|)
@@ -23,7 +27,7 @@ module Conveyor.Codensity
 
 import qualified    Conveyor.Core as C
 
-import              Control.Monad (ap, liftM)
+import              Control.Monad (ap, liftM, (>=>))
 import              Control.Monad.IO.Class
 import              Control.Monad.State.Class
 import              Control.Monad.Trans.Class
@@ -134,6 +138,23 @@ mapMaybeC :: Monad m => (i -> Maybe o) -> ConveyorT i o m ()
 mapMaybeC f = machineFrame (traverse_ yield . f)
 
 {-# INLINE mapMaybeC #-}
+
+-- |
+-- Apply a monadic function to every value in a stream.
+--
+mapMC :: Monad m => (i -> m o) -> ConveyorT i o m ()
+mapMC f = machineFrame (lift . f >=> yield)
+
+{-# INLINE mapMC #-}
+
+-- |
+-- Apply a monadic function which returns a 'Maybe' result to every
+-- value in a stream.
+--
+mapMaybeMC :: Monad m => (i -> m (Maybe o)) -> ConveyorT i o m ()
+mapMaybeMC f = machineFrame (lift . f >=> traverse_ yield)
+
+{-# INLINE mapMaybeMC #-}
 
 
 ---------------------------------------------------------------------

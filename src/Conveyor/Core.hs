@@ -13,7 +13,11 @@ module Conveyor.Core
     , yield
     , await
     , mapC
+    , machineFrame
     , mapMaybeC
+      -- * Monadic Combinators
+    , mapMC
+    , mapMaybeMC
       -- * Composition
     , fuseConveyors
     , runConveyor
@@ -175,6 +179,23 @@ mapMaybeC :: Monad m => (i -> Maybe o) -> Conveyor i o s u m ()
 mapMaybeC f = machineFrame (traverse_ yield . f)
 
 {-# INLINE mapMaybeC #-}
+
+-- |
+-- Apply a monadic function to every value in a stream.
+--
+mapMC :: Monad m => (i -> m o) -> Conveyor i o s u m ()
+mapMC f = machineFrame (lift . f >=> yield)
+
+{-# INLINE mapMC #-}
+
+-- |
+-- Apply a monadic function which returns a 'Maybe' result to every
+-- value in a stream.
+--
+mapMaybeMC :: Monad m => (i -> m (Maybe o)) -> Conveyor i o s u m ()
+mapMaybeMC f = machineFrame (lift . f >=> traverse_ yield)
+
+{-# INLINE mapMaybeMC #-}
 
 
 ---------------------------------------------------------------------
