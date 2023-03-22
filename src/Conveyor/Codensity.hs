@@ -23,7 +23,7 @@ module Conveyor.Codensity
 
 import qualified    Conveyor.Core as C
 
-import              Control.Monad (ap)
+import              Control.Monad (ap, liftM)
 import              Control.Monad.IO.Class
 import              Control.Monad.State.Class
 import              Control.Monad.Trans.Class
@@ -161,7 +161,8 @@ fuse
     -> ConveyorT b c m r
     -> ConveyorT a c m r
 
-{-# INLINE [1] fuse #-}
+{-# NOINLINE fuse #-}
+{-# SCC fuse #-}
     
 fuse (ConveyorT upstream) (ConveyorT downstream) = ConveyorT $ \rest ->
   let
@@ -179,7 +180,7 @@ fuse (ConveyorT upstream) (ConveyorT downstream) = ConveyorT $ \rest ->
         C.Finished r
             -> rest r
         C.ConveyorM m
-            -> C.ConveyorM (continueB <$> m)
+            -> C.ConveyorM (liftM continueB m)
       where continueB = runConveyorB conveyorA
     
     runConveyorA onInput onFinal conveyorA = case conveyorA of
@@ -197,7 +198,7 @@ fuse (ConveyorT upstream) (ConveyorT downstream) = ConveyorT $ \rest ->
         C.Finished r
             -> runConveyorB (C.Finished r) (onFinal r)
         C.ConveyorM m
-            -> C.ConveyorM (continueA <$> m)
+            -> C.ConveyorM (liftM continueA m)
       where continueA = runConveyorA onInput onFinal
   in
     runConveyorB (upstream C.Finished) (downstream C.Finished)

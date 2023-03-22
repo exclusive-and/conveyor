@@ -268,9 +268,13 @@ runConveyor :: Monad m => Conveyor () Void Void () m r -> m r
 runConveyor conveyor = case conveyor of
     Convey    o _       -> Void.absurd o
     Spare     s _       -> Void.absurd s
-    Machine   _ onFinal -> runConveyor $ onFinal ()
+    Machine   _ onFinal -> runConveyor (onFinal ())
     Finished  result    -> pure result
     ConveyorM m         -> m >>= runConveyor
+
+{-# SCC runConveyor #-}
+{-# NOINLINE runConveyor #-}
+
 
 -- |
 -- Input any spare parts back into the conveyor process.
