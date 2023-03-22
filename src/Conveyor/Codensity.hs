@@ -65,7 +65,7 @@ instance Monad (ConveyorT i o m) where
 -- Codensity Monad Transformer Instances
         
 instance MonadTrans (ConveyorT i o) where
-    lift m = ConveyorT $ \rest -> C.ConveyorM (rest <$> m)
+    lift m = ConveyorT $ \rest -> C.ConveyorM (rest `liftM` m)
     {-# INLINE [1] lift #-}
 
 instance MonadIO m => MonadIO (ConveyorT i o m) where
