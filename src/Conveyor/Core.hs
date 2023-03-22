@@ -133,6 +133,8 @@ instance MonadState s m => MonadState s (Conveyor i o l u m) where
 yield :: o -> Conveyor i o s u m ()
 yield o = Convey o (Finished ())
 
+{-# INLINE yield #-}
+
 -- |
 -- Await an input from an upstream conveyor.
 --
@@ -143,6 +145,8 @@ await :: Conveyor i o s u m (Maybe i)
 await = Machine onInput onFinal where
     onInput = Finished . Just
     onFinal = const $ Finished Nothing
+
+{-# INLINE [0] await #-}
 
 -- |
 -- Framework for building simple machines. Runs the same function on
@@ -188,17 +192,18 @@ bindConveyors
     -> (result0 -> Conveyor i o s u m result1)
     -> Conveyor i o s u m result1
 
-bindConveyors conveyor machine = case conveyor of
-    Convey o conveyor'
-        -> Convey o (conveyor' >>= machine)
-    Spare s conveyor'
-        -> Spare s (conveyor' >>= machine)
-    Machine onInput onFinal
-        -> Machine (onInput >=> machine) (onFinal >=> machine)
-    Finished result
-        -> machine result
-    ConveyorM action
-        -> ConveyorM ((>>= machine) <$> action)
+bindConveyors conveyor machine = go conveyor where
+    go = \case
+        Convey o conveyor'
+            -> Convey o (go conveyor')
+        Spare s conveyor'
+            -> Spare s (go conveyor')
+        Machine onInput onFinal
+            -> Machine (go . onInput) (go . onFinal)
+        Finished result
+            -> machine result
+        ConveyorM action
+            -> ConveyorM (go <$> action)
 
 -- |
 -- Fuse two conveyors (conveyor A and conveyor B) into one.

@@ -88,6 +88,8 @@ instance MonadState s m => MonadState s (ConveyorT i o m) where
 yield :: o -> ConveyorT i o m ()
 yield o = ConveyorT $ \rest -> C.Convey o (rest ())
 
+{-# INLINE yield #-}
+
 -- |
 -- Await an input from an upstream conveyor.
 --
@@ -101,6 +103,8 @@ await = ConveyorT $ \rest ->
     onFinal = const $ rest Nothing
   in
     C.Machine onInput onFinal
+
+{-# INLINE [0] await #-}
 
 -- |
 -- Framework for building simple machines. Runs the same function on
