@@ -42,15 +42,3 @@ library
         mtl             >= 2.1.2    && < 3,
         transformers    >= 0.5.2.0  && < 0.7
 
-executable profiler
-    import: common-options
-    hs-source-dirs: prof
-
-    main-is: Main.hs
-
-    ghc-options:
-
-    build-depends:
-        base            >= 4.11     && < 5,
-        conveyor
-
