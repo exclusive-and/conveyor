@@ -18,7 +18,7 @@ module Conveyor.Core
       -- * Running Conveyors
     , runConveyor
     , reuseSpares
-    -- * Pure Combinators
+      -- * Pure Combinators
     , mapC
     , mapMaybeC
       -- * Monadic Combinators
