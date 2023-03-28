@@ -51,15 +51,7 @@ data Conveyor i o s u m r
     --  (2) the state of the belt after moving the part.
     --
     = Convey o (Conveyor i o s u m r)
-
-    -- |
-    -- Place a spare part on the belt. Spares can be reused.
-    --
-    -- Similar to 'Convey', the second field represents the conveyor
-    -- after the spare is removed from the belt.
-    --
-    | Spare s (Conveyor i o s u m r)
-    
+   
     -- |
     -- Install a machine on the conveyor.
     -- 
@@ -94,6 +86,14 @@ data Conveyor i o s u m r
     -- running the conveyor.
     -- 
     | ConveyorM (m (Conveyor i o s u m r))
+
+    -- |
+    -- Place a spare part on the belt. Spares can be reused.
+    --
+    -- Similar to 'Convey', the second field represents the conveyor
+    -- after the spare is removed from the belt.
+    --
+    | Spare s (Conveyor i o s u m r)
 
 
 instance Monad m => Functor (Conveyor i o s u m) where
@@ -184,15 +184,15 @@ bindConveyors conveyor machine = go conveyor where
     go = \case
         Convey o conveyor'
             -> Convey o (go conveyor')
-        Spare s conveyor'
-            -> Spare s (go conveyor')
         Machine onInput onFinal
             -> Machine (go . onInput) (go . onFinal)
         Finished result
             -> machine result
         ConveyorM action
             -> ConveyorM (go <$> action)
-
+        Spare s conveyor'
+            -> Spare s (go conveyor')
+ 
 -- |
 -- Fuse two conveyors (conveyor A and conveyor B) into one.
 --
@@ -210,8 +210,6 @@ fuseConveyors = runConveyorB where
         -- Convey parts from conveyor B downstream and continue.
         Convey o conveyorB'
             -> Convey o (continueB conveyorB')
-        Spare s _conveyorB'
-            -> Void.absurd s
         -- Let conveyor A give us the next part.
         Machine onInput onFinal
             -> runConveyorA onInput onFinal conveyorA
@@ -220,15 +218,14 @@ fuseConveyors = runConveyorB where
             -> Finished r
         ConveyorM m
             -> ConveyorM (continueB <$> m)
+        Spare s _conveyorB'
+            -> Void.absurd s
       where continueB = runConveyorB conveyorA
 
     runConveyorA onInput onFinal conveyorA = case conveyorA of
         -- Convey a part from conveyor A into a machine on conveyor B.
         Convey o conveyorA'
             -> runConveyorB conveyorA' (onInput o)
-        -- Take spares off and continue.
-        Spare s conveyorA'
-            -> Spare s (continueA conveyorA')
         -- Run the machines that feed conveyor A and continue.
         Machine onInput' onFinal'
             -> Machine (continueA . onInput') (continueA . onFinal')
@@ -238,6 +235,9 @@ fuseConveyors = runConveyorB where
             -> runConveyorB (Finished r) (onFinal r)
         ConveyorM m
             -> ConveyorM (continueA <$> m)
+        -- Take spares off and continue.
+        Spare s conveyorA'
+            -> Spare s (continueA conveyorA')
       where continueA = runConveyorA onInput onFinal
 
 
@@ -255,10 +255,10 @@ fuseConveyors = runConveyorB where
 runConveyor :: Monad m => Conveyor () Void Void () m r -> m r
 runConveyor conveyor = case conveyor of
     Convey    o _       -> Void.absurd o
-    Spare     s _       -> Void.absurd s
     Machine   _ onFinal -> runConveyor (onFinal ())
     Finished  result    -> pure result
     ConveyorM m         -> m >>= runConveyor
+    Spare     s _       -> Void.absurd s
 
 {-# SCC runConveyor #-}
 {-# NOINLINE runConveyor #-}
@@ -271,8 +271,6 @@ reuseSpares :: Monad m => Conveyor i o i u m r -> Conveyor i o s u m r
 reuseSpares = go [] where
     go spares (Convey o conveyor)
         = Convey o (go spares conveyor)
-    go spares (Spare s conveyor)
-        = go (s : spares) conveyor
     go (s : spares) (Machine onInput _)
         = go spares $ onInput s
     go [] (Machine onInput onFinal)
@@ -281,6 +279,8 @@ reuseSpares = go [] where
         = Finished r
     go spares (ConveyorM m)
         = ConveyorM (go spares <$> m)
+    go spares (Spare s conveyor)
+        = go (s : spares) conveyor
 
 
 ---------------------------------------------------------------------

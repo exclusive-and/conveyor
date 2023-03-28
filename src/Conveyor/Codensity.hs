@@ -158,8 +158,6 @@ fuse (ConveyorT upstream) (ConveyorT downstream) = ConveyorT $ \rest ->
         -- Convey parts from conveyor B downstream and continue.
         C.Convey o conveyorB'
             -> C.Convey o (continueB conveyorB')
-        C.Spare s conveyorB'
-            -> runConveyorB (C.Convey s conveyorA) conveyorB'
         -- Let conveyor A give us the next part.
         C.Machine onInput onFinal
             -> runConveyorA onInput onFinal conveyorA
@@ -169,15 +167,14 @@ fuse (ConveyorT upstream) (ConveyorT downstream) = ConveyorT $ \rest ->
             -> rest r
         C.ConveyorM m
             -> C.ConveyorM (liftM continueB m)
+        C.Spare s conveyorB'
+            -> runConveyorB (C.Convey s conveyorA) conveyorB'
       where continueB = runConveyorB conveyorA
 
     runConveyorA onInput onFinal conveyorA = case conveyorA of
         -- Convey a part from conveyor A into a machine on conveyor B.
         C.Convey o conveyorA'
             -> runConveyorB conveyorA' (onInput o)
-        -- Take spares off and continue.
-        C.Spare s conveyorA'
-            -> C.Spare s (continueA conveyorA')
         -- Run the machines that feed conveyor A and continue.
         C.Machine onInput' onFinal'
             -> C.Machine (continueA . onInput') (continueA . onFinal')
@@ -187,6 +184,9 @@ fuse (ConveyorT upstream) (ConveyorT downstream) = ConveyorT $ \rest ->
             -> runConveyorB (C.Finished r) (onFinal r)
         C.ConveyorM m
             -> C.ConveyorM (liftM continueA m)
+        -- Take spares off and continue.
+        C.Spare s conveyorA'
+            -> C.Spare s (continueA conveyorA')
       where continueA = runConveyorA onInput onFinal
   in
     runConveyorB (upstream C.Finished) (downstream C.Finished)
