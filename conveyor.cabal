@@ -1,6 +1,6 @@
 Cabal-version:  2.2
 Name:           conveyor
-Version:        0.2.1
+Version:        0.3.0
 Synopsis:       Conveyor Belts for Industrial-Grade Pipelines
 License:        BSD-3-Clause
 License-file:   LICENSE
@@ -29,6 +29,7 @@ library
         Conveyor
         Conveyor.Core
         Conveyor.Codensity
+        Conveyor.Streaming
 
     ghc-options: -Wall -Wcompat
     CPP-Options: -DCABAL
