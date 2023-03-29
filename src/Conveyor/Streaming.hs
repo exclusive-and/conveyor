@@ -11,9 +11,6 @@ module Conveyor.Streaming
     , Of (..)
       -- * Conveyor Stream Composition
     , bindConveyorS
-    , fuseConveyorS
-      -- * Run Streaming Conveyors
-    , runConveyorS
       -- * Streaming Combinators
     , mapS
     ) where
@@ -36,16 +33,18 @@ data ConveyorS f m r
     -- One step of the conveyor process.
     --
     -- How the constructor is interpreted depends on our choice of
-    -- underlying functor. Some examples of suitable functors and their
-    -- interpretations are:
+    -- underlying functor. Some examples of suitable functors and
+    -- their interpretations are:
     --
-    --  (1) the functor @(->) i@ gives us a consumer, like the
-    --      'Core.Machine' constructor: @i -> ConveyorS ((->) i) m r@.
+    --  (1) The functor @(->) i@ gives @i -> ConveyorS ((->) i) m r@,
+    --      which is a consumer stream like the 'Core.Machine'
+    --      constructor.
     --
-    --  (2) the functor @Of input@ gives a more familiar component-wise
-    --      stream type: @input :> (ConveyorS (Of input) m r)@.
+    --  (2) The functor @Of i@ gives @i :> (ConveyorS (Of i) m r)@,
+    --      which is a producer-based stream like the 'Core.Convey'
+    --      constructor.
     -- 
-    = Convey    (f (ConveyorS f m r))
+    = ConveyS   (f (ConveyorS f m r))
 
     -- |
     -- Record an effect to be performed when running the conveyor.
@@ -95,10 +94,10 @@ instance (Functor f, MonadIO m) => MonadIO (ConveyorS f m) where
 -- streaming conveyor, we get something like Clash's @Signal dom@ type,
 -- which is useful for hardware simulation.
 --
-data Of a b = a :> b
+data Of a b = !a :> b
 
 instance Functor (Of a) where
-    fmap f (a :> x) = a :> (f x)
+    fmap f (a :> x) = a :> f x
     {-# INLINE fmap #-}
 
 
@@ -119,32 +118,9 @@ bindConveyorS
 
 bindConveyorS conveyor f = go conveyor where
     go = \case
-        Convey   s -> Convey $ go <$> s
+        ConveyS  s -> ConveyS $ go <$> s
         Effect   m -> Effect $ go <$> m
         Finished r -> f r
-
--- |
--- Fuse two streaming conveyors. It turns out that this is just function
--- composition! :D
---
-fuseConveyorS
-    :: (Functor f, Monad m)
-    => (ConveyorS f m a -> ConveyorS f m b)
-    -> (ConveyorS f m b -> ConveyorS f m c)
-    -> (ConveyorS f m a -> ConveyorS f m c)
-
-fuseConveyorS = flip (.)
-
-
----------------------------------------------------------------------
--- Run Streaming Conveyors
-
-runConveyorS :: Monad m => ConveyorS m m r -> m r
-runConveyorS = go where
-    go = \case
-        Convey   s -> s >>= go
-        Effect   m -> m >>= go
-        Finished r -> pure r
 
 
 ---------------------------------------------------------------------
@@ -161,7 +137,7 @@ mapS
 
 mapS f = loop where
     loop = \case
-        Convey   s -> Convey $ go $ loop <$> s
+        ConveyS  s -> ConveyS $ go $ loop <$> s
         Effect   m -> Effect $ loop <$> m
         Finished r -> Finished r
 
