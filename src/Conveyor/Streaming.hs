@@ -41,7 +41,7 @@ data ConveyorStream f m r
     --      stream like the 'Core.Machine' constructor.
     --
     --  (2) The functor @Of i@ gives this constructor a field of
-    --      type @i :> (ConveyorS (Of i) m r)@, which is a producer
+    --      type @i :> (ConveyorStream (Of i) m r)@, which is a producer
     --      stream like the 'Core.Convey' constructor.
     -- 
     = OneStep   (f (ConveyorStream f m r))
