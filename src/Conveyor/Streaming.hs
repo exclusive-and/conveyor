@@ -6,11 +6,11 @@
 --
 module Conveyor.Streaming
     ( -- * Streaming Conveyors
-      ConveyorS (..)
+      ConveyorStream (..)
       -- * Signal-like Stream Functor
     , Of (..)
       -- * Conveyor Stream Composition
-    , bindConveyorS
+    , bindStreams
       -- * Streaming Combinators
     , mapS
     ) where
@@ -28,7 +28,7 @@ import              Control.Monad.Trans.Class
 -- |
 -- A streaming version of 'Core.Conveyor'. Simple and blazing fast.
 --
-data ConveyorS f m r
+data ConveyorStream f m r
     -- |
     -- One step of the conveyor process.
     --
@@ -36,20 +36,20 @@ data ConveyorS f m r
     -- underlying functor. Some examples of suitable functors and
     -- their interpretations are:
     --
-    --  (1) The functor @(->) i@ gives @i -> ConveyorS ((->) i) m r@,
-    --      which is a consumer stream like the 'Core.Machine'
-    --      constructor.
+    --  (1) The functor @(->) i@ gives this constructor a field of
+    --      type @i -> ConveyorStream ((->) i) m r@, which is a consumer
+    --      stream like the 'Core.Machine' constructor.
     --
-    --  (2) The functor @Of i@ gives @i :> (ConveyorS (Of i) m r)@,
-    --      which is a producer-based stream like the 'Core.Convey'
-    --      constructor.
+    --  (2) The functor @Of i@ gives this constructor a field of
+    --      type @i :> (ConveyorS (Of i) m r)@, which is a producer
+    --      stream like the 'Core.Convey' constructor.
     -- 
-    = ConveyS   (f (ConveyorS f m r))
+    = OneStep   (f (ConveyorStream f m r))
 
     -- |
     -- Record an effect to be performed when running the conveyor.
     --
-    | Effect    (m (ConveyorS f m r))
+    | Effect    (m (ConveyorStream f m r))
 
     -- |
     -- Indicate that the stream closed and the conveyor finished with
@@ -58,21 +58,21 @@ data ConveyorS f m r
     | Finished  r
 
 
-instance (Functor f, Monad m) => Functor (ConveyorS f m) where
+instance (Functor f, Monad m) => Functor (ConveyorStream f m) where
     fmap = liftM
     {-# INLINE fmap #-}
 
-instance (Functor f, Monad m) => Applicative (ConveyorS f m) where
+instance (Functor f, Monad m) => Applicative (ConveyorStream f m) where
     pure  = Finished
     {-# INLINE pure #-}
     (<*>) = ap
     {-# INLINE (<*>) #-}
 
-instance (Functor f, Monad m) => Monad (ConveyorS f m) where
+instance (Functor f, Monad m) => Monad (ConveyorStream f m) where
     return = pure
     {-# INLINE return #-}
 
-    (>>=) = bindConveyorS
+    (>>=) = bindStreams
     {-# INLINE (>>=) #-}
 
 
@@ -110,16 +110,16 @@ instance Functor (Of a) where
 -- Runs one conveyor until it produces a 'Finished' result, and then
 -- passes that as an input to the next.
 --
-bindConveyorS
+bindStreams
     :: (Functor f, Monad m)
-    => ConveyorS f m r0
-    -> (r0 -> ConveyorS f m r1)
-    -> ConveyorS f m r1
+    => ConveyorStream f m r0
+    -> (r0 -> ConveyorStream f m r1)
+    -> ConveyorStream f m r1
 
-bindConveyorS conveyor f = go conveyor where
+bindStreams conveyor f = go conveyor where
     go = \case
-        ConveyS  s -> ConveyS $ go <$> s
-        Effect   m -> Effect $ go <$> m
+        OneStep  s -> OneStep (go <$> s)
+        Effect   m -> Effect  (go <$> m)
         Finished r -> f r
 
 
@@ -132,13 +132,13 @@ bindConveyorS conveyor f = go conveyor where
 mapS
     :: Monad m
     => (a -> b)
-    -> ConveyorS (Of a) m r
-    -> ConveyorS (Of b) m r
+    -> ConveyorStream (Of a) m r
+    -> ConveyorStream (Of b) m r
 
 mapS f = loop where
     loop = \case
-        ConveyS  s -> ConveyS $ go $ loop <$> s
-        Effect   m -> Effect $ loop <$> m
+        OneStep  s -> OneStep (go $ loop <$> s)
+        Effect   m -> Effect  (     loop <$> m)
         Finished r -> Finished r
 
     go (x :> xs) = f x :> xs
