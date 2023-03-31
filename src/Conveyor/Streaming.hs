@@ -7,10 +7,20 @@
 module Conveyor.Streaming
     ( -- * Streaming Conveyors
       ConveyorStream (..)
+      -- * Conveyor Stream Composition
+    , (|>)
+    , (<|)
+    , bindStreams
       -- * Signal-like Stream Functor
     , Of (..)
-      -- * Conveyor Stream Composition
-    , bindStreams
+    , ConveyorSignal
+      -- * Conveyor Conversions
+    , ConveyorF (..)
+    , ConveyorS
+    , conveyorToConveyorS
+    , conveyorToStream
+    , yieldS
+    , awaitS
       -- * Streaming Combinators
     , mapS
     ) where
@@ -20,6 +30,8 @@ import qualified    Conveyor.Core as Core
 import              Control.Monad (ap, liftM)
 import              Control.Monad.IO.Class
 import              Control.Monad.Trans.Class
+import              Data.Void (Void)
+import qualified    Data.Void as Void
 
 
 ---------------------------------------------------------------------
@@ -33,16 +45,19 @@ data ConveyorStream f m r
     -- One step of the conveyor process.
     --
     -- How the constructor is interpreted depends on our choice of
-    -- underlying functor. Some examples of suitable functors and
-    -- their interpretations are:
+    -- underlying functor. Some examples of suitable functors and the
+    -- corresponding interpretations of the constructor are:
     --
-    --  (1) The functor @(->) i@ gives this constructor a field of
-    --      type @i -> ConveyorStream ((->) i) m r@, which is a consumer
-    --      stream like the 'Core.Machine' constructor.
+    --  (1) The functor @(->) i@ leads to steps with the type
+    --      @i -> ConveyorStream ((->) i) m r@. Streams with steps
+    --      of this type are consumers in the style of 'Core.Machine'.
     --
-    --  (2) The functor @Of i@ gives this constructor a field of
-    --      type @i :> (ConveyorStream (Of i) m r)@, which is a producer
-    --      stream like the 'Core.Convey' constructor.
+    --  (2) The functor @Of i@ gives steps of the form
+    --      @i :> (ConveyorStream (Of i) m r)@. The stream we get from
+    --      this is a producer, similar to 'Core.Convey'.
+    --
+    --  (3) The functor @ConveyorF i o s u@ has steps identical to
+    --      the 'Core.Conveyor' type.
     -- 
     = OneStep   (f (ConveyorStream f m r))
 
@@ -87,22 +102,22 @@ instance (Functor f, MonadIO m) => MonadIO (ConveyorStream f m) where
 
 
 ---------------------------------------------------------------------
--- Signal-like Stream Functor
+-- Conveyor Stream Composition
+
+infixl 0 |>
+infixr 0 <|
 
 -- |
--- A simple pairing functor. When used as the underlying functor of a
--- streaming conveyor, we get something like Clash's @Signal dom@ type,
--- which is useful for hardware simulation.
+-- Apply the second argument to the first. Equivalent to @flip ($)@.
 --
-data Of a b = !a :> b
+(|>) :: a -> (a -> b) -> b
+x |> f = f x
 
-instance Functor (Of a) where
-    fmap f (a :> x) = a :> f x
-    {-# INLINE fmap #-}
-
-
----------------------------------------------------------------------
--- Conveyor Stream Composition
+-- |
+-- Apply the first argument ot the second. Equivalent to @($)@.
+--
+(<|) :: (a -> b) -> a -> b
+f <| x = f x
 
 -- |
 -- Connect two streaming conveyors end-to-end.
@@ -118,9 +133,134 @@ bindStreams
 
 bindStreams conveyor f = go conveyor where
     go = \case
-        OneStep  s -> OneStep (go <$> s)
-        Effect   m -> Effect  (go <$> m)
+        OneStep  s -> go <$> s |> OneStep
+        Effect   m -> go <$> m |> Effect
         Finished r -> f r
+
+
+---------------------------------------------------------------------
+-- Signal-like Stream Functor
+
+-- |
+-- A simple pairing functor. When used as the underlying functor of a
+-- streaming conveyor, we get something like Clash's @Signal dom@ type,
+-- which is useful for hardware simulation.
+--
+data Of a b = !a :> b
+
+instance Functor (Of a) where
+    fmap f (a :> x) = a :> f x
+    {-# INLINE fmap #-}
+
+
+type ConveyorSignal m a = ConveyorStream (Of a) m Void
+
+
+---------------------------------------------------------------------
+-- Conveyor Conversions
+
+-- |
+-- A functor compatible with 'ConveyorStream' which emulates the normal
+-- operation of 'Core.Conveyor'.
+--
+data ConveyorF i o s u a
+    -- |
+    -- Analogous to 'Core.Convey': this constructor conveys results
+    -- to the next stage of the conveyor process.
+    --
+    = Convey    o a
+
+    -- |
+    -- Analogous to 'Core.Machine': this constructor accepts inputs
+    -- and results from further up the process.
+    --
+    | Machine   (i -> a) (u -> a)
+
+    -- |
+    -- Analogous to 'Core.Spare': this constructor yields spare parts
+    -- that can be reused.
+    --
+    | Spare     s a
+
+instance Functor (ConveyorF i o s u) where
+    fmap f = \case
+        Convey o stream'
+            -> Convey o $ f stream'
+        Machine onInput onFinal
+            -> Machine (f . onInput) (f . onFinal)
+        Spare s stream'
+            -> Spare s $ f stream'
+
+
+type ConveyorS i o s u m r = ConveyorStream (ConveyorF i o s u) m r
+
+
+yieldS :: Monad m => o -> ConveyorS i o s u m ()
+yieldS o = OneStep $ Convey o $ Finished ()
+
+awaitS :: Monad m => ConveyorS i o s u m (Maybe i)
+awaitS = OneStep $ Machine onInput onFinal where
+    onInput = Finished . Just
+    onFinal = Finished . const Nothing
+
+
+-- |
+-- Convert a 'Core.Conveyor' to its analogous stream using 'ConveyorF'
+-- as the underlying functor.
+--
+conveyorToConveyorS
+    :: Monad m
+    => Core.Conveyor i o s u m r
+    -> ConveyorS i o s u m r
+
+conveyorToConveyorS = go where
+    go = \case
+        Core.Convey o conveyor'
+            -> OneStep $ Convey o $ go conveyor'
+        Core.Machine onInput onFinal
+            -> OneStep $ Machine (go . onInput) (go . onFinal)
+        Core.ConveyorM m
+            -> Effect $ go <$> m
+        Core.Finished r
+            -> Finished r
+        Core.Spare s conveyor'
+            -> OneStep $ Spare s $ go conveyor'
+
+-- |
+-- Convert a 'Core.Conveyor' to its analogous stream using 'Of' as the
+-- underlying functor. Streams with 'Of' are producers, but we can
+-- emulate the consumer/producer/pipe semantics of 'Core.Conveyor' with
+-- functions from producers to producers.
+--
+-- NOTE: Producer streams do /not/ support spares! You must reuse any
+--       spares /before/ trying this conversion!
+--
+conveyorToStream
+    :: Monad m
+    => Core.Conveyor i o Void u m r
+    -> ConveyorStream (Of i) m u
+    -> ConveyorStream (Of o) m r
+
+conveyorToStream = flip go where
+    go stream = \case
+        Core.Convey o conveyor'
+            -> OneStep $ o :> go stream conveyor'
+        Core.Machine onInput onFinal
+            -> runUpstream onInput onFinal stream
+        Core.ConveyorM m
+            -> Effect $ go stream <$> m
+        Core.Finished r
+            -> Finished r
+        Core.Spare s _conveyor'
+            -> Void.absurd s
+
+    runUpstream onInput onFinal = \case
+        OneStep (o :> stream')
+            -> go stream' $ onInput o
+        Effect m
+            -> Effect $ runUpstream onInput onFinal <$> m
+        Finished r
+            -> go (Finished r) $ onFinal r
 
 
 ---------------------------------------------------------------------
@@ -137,8 +277,8 @@ mapS
 
 mapS f = loop where
     loop = \case
-        OneStep  s -> OneStep (go $ loop <$> s)
-        Effect   m -> Effect  (     loop <$> m)
+        OneStep  s -> loop <$> s |> go |> OneStep
+        Effect   m -> loop <$> m |> Effect
         Finished r -> Finished r
 
     go (x :> xs) = f x :> xs
