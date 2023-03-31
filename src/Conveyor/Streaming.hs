@@ -79,10 +79,10 @@ instance (Functor f, Monad m) => Monad (ConveyorStream f m) where
 ---------------------------------------------------------------------
 -- Monad Transformer Instances
 
-instance Functor f => MonadTrans (ConveyorS f) where
+instance Functor f => MonadTrans (ConveyorStream f) where
     lift = Effect . fmap Finished
 
-instance (Functor f, MonadIO m) => MonadIO (ConveyorS f m) where
+instance (Functor f, MonadIO m) => MonadIO (ConveyorStream f m) where
     liftIO = lift . liftIO
 
 
