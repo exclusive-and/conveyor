@@ -18,6 +18,7 @@ module Conveyor.Streaming
     , ConveyorF (..)
     , ConveyorS
     , conveyorToConveyorS
+    , conveyorSToConveyor
     , conveyorToStream
     , yieldS
     , awaitS
@@ -225,6 +226,27 @@ conveyorToConveyorS = go where
             -> Finished r
         Core.Spare s conveyor'
             -> OneStep $ Spare s $ go conveyor'
+
+-- |
+-- Convert a stream to its analogous 'Core.Conveyor'.
+--
+conveyorSToConveyor
+    :: Monad m
+    => ConveyorS i o s u m r
+    -> Core.Conveyor i o s u m r
+
+conveyorSToConveyor = go where
+    go = \case
+        OneStep (Convey o stream')
+            -> Core.Convey o $ go stream'
+        OneStep (Machine onInput onFinal)
+            -> Core.Machine (go . onInput) (go . onFinal)
+        Effect m
+            -> Core.ConveyorM $ go <$> m
+        Finished r
+            -> Core.Finished r
+        OneStep (Spare s stream')
+            -> Core.Spare s $ go stream'
 
 -- |
 -- Convert a 'Core.Conveyor' to its analogous stream using 'Of' as the
