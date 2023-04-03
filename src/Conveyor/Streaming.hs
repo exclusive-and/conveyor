@@ -24,6 +24,7 @@ module Conveyor.Streaming
     , awaitS
       -- * Streaming Combinators
     , mapS
+    , mapMS
     ) where
 
 import qualified    Conveyor.Core as Core
@@ -49,16 +50,16 @@ data ConveyorStream f m r
     -- underlying functor. Some examples of suitable functors and the
     -- corresponding interpretations of the constructor are:
     --
-    --  (1) The functor @(->) i@ leads to steps with the type
+    --  (1) The functor @(->) i@ corresponds to steps with the type
     --      @i -> ConveyorStream ((->) i) m r@. Streams with steps
     --      of this type are consumers in the style of 'Core.Machine'.
     --
-    --  (2) The functor @Of i@ gives steps of the form
-    --      @i :> (ConveyorStream (Of i) m r)@. The stream we get from
-    --      this is a producer, similar to 'Core.Convey'.
+    --  (2) The functor @Of i@ corresponds to steps matching
+    --      @i :> (ConveyorStream (Of i) m r)@. This pattern is a simple
+    --      producer stream, similar to 'Core.Convey'.
     --
-    --  (3) The functor @ConveyorF i o s u@ has steps identical to
-    --      the 'Core.Conveyor' type.
+    --  (3) The functor @ConveyorF i o s u@ corresponds to the 
+    --      'Core.Conveyor' type.
     -- 
     = OneStep   (f (ConveyorStream f m r))
 
@@ -289,7 +290,7 @@ conveyorToStream = flip go where
 -- Streaming Combinators
 
 -- |
--- 
+-- Map a function over a provider stream.
 --
 mapS
     :: Monad m
@@ -299,10 +300,29 @@ mapS
 
 mapS f = loop where
     loop = \case
-        OneStep  s -> loop <$> s |> go |> OneStep
+        OneStep  s -> loop <$> s |> go
         Effect   m -> loop <$> m |> Effect
         Finished r -> Finished r
 
-    go (x :> xs) = f x :> xs
+    go (x :> xs) = f x :> xs |> OneStep
+
+-- |
+-- Map a monadic action over a provider stream.
+--
+mapMS
+    :: Monad m
+    => (a -> m b)
+    -> ConveyorStream (Of a) m r
+    -> ConveyorStream (Of b) m r
+
+mapMS f = loop where
+    loop = \case
+        OneStep  s -> loop <$> s |> go
+        Effect   m -> loop <$> m |> Effect
+        Finished r -> Finished r
+
+    go (x :> xs) = Effect $ do
+        y <- f x
+        OneStep (y :> loop xs)
 
 
