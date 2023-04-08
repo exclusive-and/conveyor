@@ -40,28 +40,33 @@ import qualified    Data.Void as Void
 -- Streaming Conveyors
 
 -- |
--- A streaming version of 'Core.Conveyor'. Simple and blazing fast.
+-- Conveyors are machines that process a stream of data one piece at
+-- a time.
+-- 
+-- The specific functionality of each different type of conveyor is
+-- controlled by the choice underlying step functor. Some examples of
+-- these functionalities are:
+-- 
+--  (1) Producer streams. These are conveyors which only move data,
+--      and don't do any modification to it. Conveyors of this kind are
+--      implemented for a type @i@ by the functors @(,) i@ for lazy
+--      streams, and @'Of' i@ for strict streams.
+--  
+--  (2) Consumer streams. These conveyors don't move data, only feed
+--      it into cumulative functions. This kind of conveyor is implemented
+--      for a type @i@ by the functor @(->) i@.
+--  
+--  (3) Hybrid streams. Rather than a single kind of step, these
+--      sorts of conveyors can be configured at each step to either
+--      consume or produce data as needed. A hybrid stream which
+--      consumes type @i@ and produces type @o@ is implemented with the
+--      functor @'ConveyorF' i o s u@.
 --
 data ConveyorStream f m r
     -- |
     -- One step of the conveyor process.
-    --
-    -- How the constructor is interpreted depends on our choice of
-    -- underlying functor. Some examples of suitable functors and the
-    -- corresponding interpretations of the constructor are:
-    --
-    --  (1) The functor @(->) i@ corresponds to steps with the type
-    --      @i -> ConveyorStream ((->) i) m r@. Streams with steps
-    --      of this type are consumers in the style of 'Core.Machine'.
-    --
-    --  (2) The functor @Of i@ corresponds to steps matching
-    --      @i :> (ConveyorStream (Of i) m r)@. This pattern is a simple
-    --      producer stream, similar to 'Core.Convey'.
-    --
-    --  (3) The functor @ConveyorF i o s u@ corresponds to the 
-    --      'Core.Conveyor' type.
     -- 
-    = OneStep   (f (ConveyorStream f m r))
+    = OneThing  (f (ConveyorStream f m r))
 
     -- |
     -- Record an effect to be performed when running the conveyor.
@@ -69,8 +74,8 @@ data ConveyorStream f m r
     | Effect    (m (ConveyorStream f m r))
 
     -- |
-    -- Indicate that the stream closed and the conveyor finished with
-    -- a result.
+    -- Indicate that the stream closed and the conveyor finished
+    -- with a result.
     --
     | Finished  r
 
@@ -135,7 +140,7 @@ bindStreams
 
 bindStreams conveyor f = go conveyor where
     go = \case
-        OneStep  s -> go <$> s |> OneStep
+        OneThing s -> go <$> s |> OneThing
         Effect   m -> go <$> m |> Effect
         Finished r -> f r
 
@@ -198,10 +203,10 @@ type ConveyorS i o s u m r = ConveyorStream (ConveyorF i o s u) m r
 
 
 yieldS :: Monad m => o -> ConveyorS i o s u m ()
-yieldS o = OneStep $ Convey o $ Finished ()
+yieldS o = OneThing $ Convey o $ Finished ()
 
 awaitS :: Monad m => ConveyorS i o s u m (Maybe i)
-awaitS = OneStep $ Machine onInput onFinal where
+awaitS = OneThing $ Machine onInput onFinal where
     onInput = Finished . Just
     onFinal = Finished . const Nothing
 
@@ -218,15 +223,15 @@ conveyorToConveyorS
 conveyorToConveyorS = go where
     go = \case
         Core.Convey o conveyor'
-            -> OneStep $ Convey o $ go conveyor'
+            -> OneThing $ Convey o $ go conveyor'
         Core.Machine onInput onFinal
-            -> OneStep $ Machine (go . onInput) (go . onFinal)
+            -> OneThing $ Machine (go . onInput) (go . onFinal)
         Core.ConveyorM m
             -> Effect $ go <$> m
         Core.Finished r
             -> Finished r
         Core.Spare s conveyor'
-            -> OneStep $ Spare s $ go conveyor'
+            -> OneThing $ Spare s $ go conveyor'
 
 -- |
 -- Convert a stream to its analogous 'Core.Conveyor'.
@@ -238,15 +243,15 @@ conveyorSToConveyor
 
 conveyorSToConveyor = go where
     go = \case
-        OneStep (Convey o stream')
+        OneThing (Convey o stream')
             -> Core.Convey o $ go stream'
-        OneStep (Machine onInput onFinal)
+        OneThing (Machine onInput onFinal)
             -> Core.Machine (go . onInput) (go . onFinal)
         Effect m
             -> Core.ConveyorM $ go <$> m
         Finished r
             -> Core.Finished r
-        OneStep (Spare s stream')
+        OneThing (Spare s stream')
             -> Core.Spare s $ go stream'
 
 -- |
@@ -267,7 +272,7 @@ conveyorToStream
 conveyorToStream = flip go where
     go stream = \case
         Core.Convey o conveyor'
-            -> OneStep $ o :> go stream conveyor'
+            -> OneThing $ o :> go stream conveyor'
         Core.Machine onInput onFinal
             -> runUpstream onInput onFinal stream
         Core.ConveyorM m
@@ -278,7 +283,7 @@ conveyorToStream = flip go where
             -> Void.absurd s
 
     runUpstream onInput onFinal = \case
-        OneStep (o :> stream')
+        OneThing (o :> stream')
             -> go stream' $ onInput o
         Effect m
             -> Effect $ runUpstream onInput onFinal <$> m
@@ -300,11 +305,11 @@ mapS
 
 mapS f = loop where
     loop = \case
-        OneStep  s -> loop <$> s |> go
+        OneThing s -> loop <$> s |> go
         Effect   m -> loop <$> m |> Effect
         Finished r -> Finished r
 
-    go (x :> xs) = f x :> xs |> OneStep
+    go (x :> xs) = f x :> xs |> OneThing
 
 -- |
 -- Map a monadic action over a provider stream.
@@ -317,12 +322,10 @@ mapMS
 
 mapMS f = loop where
     loop = \case
-        OneStep  s -> loop <$> s |> go
+        OneThing s -> loop <$> s |> go
         Effect   m -> loop <$> m |> Effect
         Finished r -> Finished r
 
-    go (x :> xs) = Effect $ do
-        y <- f x
-        OneStep (y :> loop xs)
+    go (x :> xs) = Effect $ OneThing . (:> xs) <$> f x
 
 
