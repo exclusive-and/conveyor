@@ -2,10 +2,10 @@
 ---------------------------------------------------------------------
 -- |
 -- Module       : Conveyor.Streaming
--- Description  : Conveyor-Compatible Stepwise Streaming
+-- Description  : Basic Streaming Components of Conveyors
 --
 module Conveyor.Streaming
-    ( -- * Streaming Conveyors
+    ( -- * Conveyor Fundamentals
       ConveyorStream (..)
       -- * Conveyor Stream Composition
     , (|>)
@@ -37,30 +37,30 @@ import qualified    Data.Void as Void
 
 
 ---------------------------------------------------------------------
--- Streaming Conveyors
+-- Conveyor Fundamentals
 
 -- |
--- Conveyors are machines that process a stream of data one piece at
--- a time.
+-- Conveyors are machines that process a stream of data one piece
+-- at a time.
 -- 
 -- The specific functionality of each different type of conveyor is
--- controlled by the choice underlying step functor. Some examples of
--- these functionalities are:
+-- controlled by the choice underlying step functor. Some examples
+-- of these functionalities are:
 -- 
 --  (1) Producer streams. These are conveyors which only move data,
---      and don't do any modification to it. Conveyors of this kind are
---      implemented for a type @i@ by the functors @(,) i@ for lazy
---      streams, and @'Of' i@ for strict streams.
+--      and don't do any modification to it. Conveyors of this
+--      kind are implemented for a type @i@ by the functors @(,) i@
+--      for lazy streams, and @'Of' i@ for strict streams.
 --  
---  (2) Consumer streams. These conveyors don't move data, only feed
---      it into cumulative functions. This kind of conveyor is implemented
---      for a type @i@ by the functor @(->) i@.
+--  (2) Consumer streams. These conveyors don't move data, only
+--      feed it into cumulative functions. This kind of conveyor is
+--      implemented for a type @i@ by the functor @(->) i@.
 --  
 --  (3) Hybrid streams. Rather than a single kind of step, these
 --      sorts of conveyors can be configured at each step to either
 --      consume or produce data as needed. A hybrid stream which
---      consumes type @i@ and produces type @o@ is implemented with the
---      functor @'ConveyorF' i o s u@.
+--      consumes type @i@ and produces type @o@ is implemented with
+--      the functor @'ConveyorF' i o s u@.
 --
 data ConveyorStream f m r
     -- |
