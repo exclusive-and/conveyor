@@ -1,6 +1,6 @@
 
-module Conveyor (module Conveyor.Codensity) where
+module Conveyor (module Conveyor.Core) where
 
--- import Conveyor.Core
-import Conveyor.Codensity
+import Conveyor.Core
+-- import Conveyor.Codensity
 
