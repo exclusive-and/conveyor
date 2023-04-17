@@ -2,11 +2,13 @@
 ---------------------------------------------------------------------
 -- |
 -- Module       : Conveyor.Core
--- Description  : Shared Conveyor Body and Lazy Producers
+-- Description  : Lazy Producers and General Structure of Conveyors
 --
 module Conveyor.Core
-    ( -- * Conveyor Fundamentals
+    ( -- * Conveyor Structure
       ConveyorBody (..)
+      -- $conveyorExamples
+      
       -- * Conveyor Composition
     , (|>)
     , (<|)
@@ -28,35 +30,18 @@ import qualified    Data.Void as Void
 
 
 ---------------------------------------------------------------------
--- Conveyor Fundamentals
+-- Conveyor Structure
 
 -- |
--- Conveyors work on data one piece at a time.
+-- Conveyors store sequences of values, one value after the next.
+-- Each value is stored on the conveyor in a cons-cell along with the
+-- continuation of the sequence.
 -- 
--- 'OneThing' represents a cons-cell containing one thing stored on
--- the conveyor. It also keeps a continuation of all of the data that
--- comes after that thing.
---
--- For generality, the cons-cells are implemented using a curried
--- sequencing functor. This way, the functional properties of a
--- conveyor can be configured by choosing an appropriate functor for
--- its cells.
---
--- Some examples of conveyors using different sequencing functors are:
---
---  - Producer streams. These are the most basic conveyors: they
---    just store data as-is so that it can be moved. See 'Conveyor'
---    and "Conveyor.Strict".
---
---  - Consumer streams. Data that's been put into a consumer cannot
---    be accessed from outside the conveyor, but it can influence the
---    continuation. The only way to return data from a pure consumer
---    is by finishing. See 'Consumer'.
---
---  - Hybrid streams. Hybrids combine the capabilities of producers
---    and consumers. Consumer-like steps input into the continuation
---    from upstream, and producer-like steps output data that can be
---    accessed downstream. See "Conveyor.Hybrid".
+-- For generality, this type accepts a /sequencing functor/ @f@, which
+-- controls the relationship between the value and continuation of
+-- each cons-cell. This way, the operational behaviour of a conveyor
+-- is determined by the choice of functor, enabling more flexible and
+-- configurable designs.
 --
 data ConveyorBody f m r
     -- |
@@ -102,6 +87,27 @@ instance Functor f => MonadTrans (ConveyorBody f) where
 
 instance (Functor f, MonadIO m) => MonadIO (ConveyorBody f m) where
     liftIO = lift . liftIO
+
+
+-- $conveyorExamples
+-- 
+-- = Some Example Conveyors
+-- 
+-- Some examples of conveyors using different sequencing functors are:
+--
+--  - Producer streams. These are the most basic conveyors: they
+--    just store data as-is so that it can be moved. See 'Conveyor'
+--    and "Conveyor.Strict".
+--
+--  - Consumer streams. Data that's been put into a consumer cannot
+--    be accessed from outside the conveyor, but it can influence the
+--    continuation. The only way to return data from a pure consumer
+--    is by finishing. See 'Consumer'.
+--
+--  - Hybrid streams. Hybrids combine the capabilities of producers
+--    and consumers. Consumer-like steps input into the continuation
+--    from upstream, and producer-like steps output data that can be
+--    accessed downstream. See "Conveyor.Hybrid".
 
 
 ---------------------------------------------------------------------
@@ -201,9 +207,10 @@ takeC = loop where
         Effect   m       -> Effect $ loop n <$> m
         Finished _       -> Finished ()
 
-
+{-
 runConveyor :: Monad m => ConveyorBody Identity m r -> r
 runConveyor = \case
     OneThing _  ->
     Effect m    -> m >>= runConveyor
     Finished r  -> pure r
+    -}
