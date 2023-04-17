@@ -13,7 +13,7 @@ module Conveyor.Core
     , (|>)
     , (<|)
     , bindConveyors
-      -- * Lazy Producer-Only Conveyors
+      -- * Lazy Producers
     , Conveyor
     , Signal
     , mapC
@@ -35,7 +35,7 @@ import qualified    Data.Void as Void
 -- |
 -- Conveyors store sequences of values, one value after the next.
 -- Each value is stored on the conveyor in a cons-cell along with the
--- continuation of the sequence.
+-- remaining continuation of the sequence.
 -- 
 -- For generality, this type accepts a /sequencing functor/ @f@, which
 -- controls the relationship between the value and continuation of
@@ -148,7 +148,7 @@ bindConveyors conveyor f = go conveyor where
 
 
 ---------------------------------------------------------------------
--- Lazy Producer-Only Conveyors
+-- Lazy Producers
 
 -- |
 -- The simplest kind of conveyor: a lazy producer.
