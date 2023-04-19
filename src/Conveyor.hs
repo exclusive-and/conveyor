@@ -1,6 +1,7 @@
 
-module Conveyor (module Conveyor.Core) where
+module Conveyor (module X) where
 
-import Conveyor.Core
+import Conveyor.Core as X
+import Conveyor.Lazy as X
 -- import Conveyor.Codensity
 

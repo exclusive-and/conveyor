@@ -20,6 +20,7 @@ common common-options
         LambdaCase
         MultiParamTypeClasses
         NoStarIsType
+        PatternSynonyms
         TupleSections
 
 library
@@ -29,6 +30,9 @@ library
     exposed-modules:
         Conveyor
         Conveyor.Core
+        Conveyor.Lazy
+        Conveyor.Hybrid
+        Conveyor.Codensity
 
     ghc-options: -Wall -Wcompat
     CPP-Options: -DCABAL
