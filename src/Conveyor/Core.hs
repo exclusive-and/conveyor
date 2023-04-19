@@ -1,8 +1,10 @@
 
+{-# LANGUAGE UndecidableInstances #-}
+
 ---------------------------------------------------------------------
 -- |
 -- Module       : Conveyor.Core
--- Description  : Lazy Producers and General Structure of Conveyors
+-- Description  : General Structure of Types of the Conveyor Family
 --
 module Conveyor.Core
     ( -- * Conveyor Structure
@@ -13,18 +15,17 @@ module Conveyor.Core
     , (|>)
     , (<|)
     , bindConveyors
-      -- * Lazy Producers
-    , Conveyor
-    , Signal
-    , mapC
-    , mapMC
-    , takeC
+    
+      -- * Generalized Running
+    , Sink
+    , runConveyor
     ) where
 
 import              Control.Monad (ap, liftM)
 import              Control.Monad.IO.Class
+import              Control.Monad.State.Class
 import              Control.Monad.Trans.Class
-import              Data.Functor.Identity
+import              Data.Functor.Const
 import              Data.Void (Void)
 import qualified    Data.Void as Void
 
@@ -33,9 +34,9 @@ import qualified    Data.Void as Void
 -- Conveyor Structure
 
 -- |
--- Conveyors store sequences of values, one value after the next.
--- Each value is stored on the conveyor in a cons-cell along with the
--- remaining continuation of the sequence.
+-- Conveyors store sequences of values in order, one value after the
+-- next. Each value is stored in a cons-cell alongside a continuation,
+-- so that following values can be easily reached.
 -- 
 -- For generality, this type accepts a /sequencing functor/ @f@, which
 -- controls the relationship between the value and continuation of
@@ -88,6 +89,13 @@ instance Functor f => MonadTrans (ConveyorBody f) where
 instance (Functor f, MonadIO m) => MonadIO (ConveyorBody f m) where
     liftIO = lift . liftIO
 
+instance (Functor f, MonadState s m)
+    => MonadState s (ConveyorBody f m)
+  where    
+    get   = lift get
+    put   = lift . put
+    state = lift . state
+
 
 -- $conveyorExamples
 -- 
@@ -95,19 +103,21 @@ instance (Functor f, MonadIO m) => MonadIO (ConveyorBody f m) where
 -- 
 -- Some examples of conveyors using different sequencing functors are:
 --
---  - Producer streams. These are the most basic conveyors: they
---    just store data as-is so that it can be moved. See 'Conveyor'
---    and "Conveyor.Strict".
+--  - Producer streams. These are the most basic kind of conveyors:
+--    they store data as-is so that it can be moved.
+--    See 'Conveyor.Lazy.Conveyor' and 'Conveyor.Strict.Conveyor'.
 --
 --  - Consumer streams. Data that's been put into a consumer cannot
---    be accessed from outside the conveyor, but it can influence the
---    continuation. The only way to return data from a pure consumer
---    is by finishing. See 'Consumer'.
+--    be accessed from outside the conveyor, but it can influence
+--    the continuation. The only way to retrieve data from a pure
+--    consumer is by running the conveyor to get the finished result.
+--    See 'Conveyor.Lazy.Consumer'.
 --
 --  - Hybrid streams. Hybrids combine the capabilities of producers
 --    and consumers. Consumer-like steps input into the continuation
 --    from upstream, and producer-like steps output data that can be
---    accessed downstream. See "Conveyor.Hybrid".
+--    accessed downstream.
+--    See 'Conveyor.Hybrid.Conveyor'.
 
 
 ---------------------------------------------------------------------
@@ -148,69 +158,20 @@ bindConveyors conveyor f = go conveyor where
 
 
 ---------------------------------------------------------------------
--- Lazy Producers
+-- Generalized Running
 
 -- |
--- The simplest kind of conveyor: a lazy producer.
---
--- This conveyor implements sequential data-moving for a type @a@.
--- Each cons-cell is a pair @(x, following)@, where @x :: a@ is the
--- datum at the head, and @following@ is the continuation.
---
--- Ignoring effects, this is a free list: @(x0, (x1, (x2, ...)))@.
---
-type Conveyor a = ConveyorBody ((,) a)
+-- The most general type of runnable conveyor. Sinks contain no data,
+-- and so are equivalent to a free monad.
+-- 
+type Sink = ConveyorBody (Const Void)
 
 -- |
--- 'Signal' is our version of Clash's @Signal dom@ functor, extended
--- with monadic effects.
---
--- NOTE: To run a Signal, you /must/ sample a finite number of
---       values from it.
---
-type Signal m a = Conveyor a m Void
-
--- |
--- Map a function over a conveyor.
---
-mapC :: Monad m => (a -> b) -> Conveyor a m r -> Conveyor b m r
-mapC f = loop where
-    loop = \case
-        OneThing s -> loop <$> s |> go
-        Effect   m -> loop <$> m |> Effect
-        Finished r -> Finished r
-
-    go (x, xs) = OneThing (f x, xs)
-
--- |
--- Map a monadic action over a conveyor.
---
-mapMC :: Monad m => (a -> m b) -> Conveyor a m r -> Conveyor b m r
-mapMC f = loop where
-    loop = \case
-        OneThing s -> loop <$> s |> go
-        Effect   m -> loop <$> m |> Effect
-        Finished r -> Finished r
-
-    go (x, xs) = Effect $ OneThing . (, xs) <$> f x
-
--- |
--- Take an integer number of values from a conveyor, and discard
--- the rest.
---
-takeC :: Monad m => Int -> Conveyor a m r -> Conveyor a m ()
-takeC = loop where
-    loop n _ | n <= 0 = pure ()
-
-    loop n s = case s of
-        OneThing (x, xs) -> OneThing (x, loop (n - 1) xs)
-        Effect   m       -> Effect $ loop n <$> m
-        Finished _       -> Finished ()
-
-{-
-runConveyor :: Monad m => ConveyorBody Identity m r -> r
+-- Run a sink, using the monad action to chain effects.
+-- 
+runConveyor :: Monad m => Sink m r -> m r
 runConveyor = \case
-    OneThing _  ->
+    OneThing o  -> Void.absurd $ getConst o
     Effect m    -> m >>= runConveyor
     Finished r  -> pure r
-    -}
+
