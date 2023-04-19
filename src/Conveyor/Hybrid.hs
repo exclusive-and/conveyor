@@ -94,7 +94,7 @@ pattern Machine onInput onFinal = OneThing (MachineF onInput onFinal)
 pattern Spare :: s -> Conveyor i o s u m r -> Conveyor i o s u m r
 pattern Spare s a = OneThing (SpareF s a)
 
-{-# COMPLETE Convey, Machine, Effect, Finished, Spare :: Conveyor #-}
+{-# COMPLETE Convey, Machine, Effect, Finished, Spare #-}
 
 
 instance Functor (Hybrid i o s u) where
