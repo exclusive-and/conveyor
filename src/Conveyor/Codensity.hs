@@ -27,7 +27,8 @@ module Conveyor.Codensity
     , mapMaybeMC
     ) where
 
-import qualified    Conveyor.Core as C
+import              Conveyor.Core hiding (runConveyor)
+import qualified    Conveyor.Hybrid as C
 
 import              Control.Monad (ap, liftM, (>=>))
 import              Control.Monad.IO.Class
@@ -71,7 +72,7 @@ instance Monad (ConveyorT i o m) where
 -- Codensity Monad Transformer Instances
         
 instance MonadTrans (ConveyorT i o) where
-    lift m = ConveyorT $ \rest -> C.ConveyorM (rest `liftM` m)
+    lift m = ConveyorT $ \rest -> Effect (rest `liftM` m)
     {-# INLINE [1] lift #-}
 
 instance MonadIO m => MonadIO (ConveyorT i o m) where
@@ -163,10 +164,10 @@ fuse (ConveyorT upstream) (ConveyorT downstream) = ConveyorT $ \rest ->
             -> runConveyorA onInput onFinal conveyorA
         -- Convey the finished product of this process into the
         -- next continuation.
-        C.Finished r
+        Finished r
             -> rest r
-        C.ConveyorM m
-            -> C.ConveyorM (liftM continueB m)
+        Effect m
+            -> Effect (liftM continueB m)
         C.Spare s conveyorB'
             -> runConveyorB (C.Convey s conveyorA) conveyorB'
       where continueB = runConveyorB conveyorA
@@ -180,16 +181,16 @@ fuse (ConveyorT upstream) (ConveyorT downstream) = ConveyorT $ \rest ->
             -> C.Machine (continueA . onInput') (continueA . onFinal')
         -- If conveyor A finishes, feed the product to the appropriate
         -- machine on conveyor B.
-        C.Finished r
-            -> runConveyorB (C.Finished r) (onFinal r)
-        C.ConveyorM m
-            -> C.ConveyorM (liftM continueA m)
+        Finished r
+            -> runConveyorB (Finished r) (onFinal r)
+        Effect m
+            -> Effect (liftM continueA m)
         -- Take spares off and continue.
         C.Spare s conveyorA'
             -> C.Spare s (continueA conveyorA')
       where continueA = runConveyorA onInput onFinal
   in
-    runConveyorB (upstream C.Finished) (downstream C.Finished)
+    runConveyorB (upstream Finished) (downstream Finished)
 
 -- |
 -- Conveyor fusion operator. Synonym for 'fuse'.
@@ -213,7 +214,7 @@ runConveyor :: Monad m => ConveyorT () Void m r -> m r
 {-# INLINE [0] runConveyor #-}
 
 runConveyor (ConveyorT c) =
-    C.runConveyor $ C.reuseSpares $ c C.Finished
+    C.runConveyor $ C.reuseSpares $ c Finished
 
 
 ---------------------------------------------------------------------

@@ -1,6 +1,4 @@
 
-{-# LANGUAGE UndecidableInstances #-}
-
 ---------------------------------------------------------------------
 -- |
 -- Module       : Conveyor.Hybrid
@@ -8,7 +6,11 @@
 -- 
 module Conveyor.Hybrid
     ( -- * Conveyor Type
-      Conveyor (..)
+      Conveyor
+    , Hybrid (..)
+    , pattern Convey
+    , pattern Machine
+    , pattern Spare
       -- * Primitive Combinators
     , yield
     , await
@@ -26,10 +28,10 @@ module Conveyor.Hybrid
     , mapMaybeMC
     ) where
 
-import              Control.Monad (ap, liftM, (>=>))
-import              Control.Monad.IO.Class
-import              Control.Monad.State.Class
-import              Control.Monad.Trans.Class
+import              Conveyor.Core hiding (runConveyor)
+
+import              Control.Monad ((>=>))
+import              Control.Monad.Trans.Class (lift)
 import              Data.Foldable (traverse_)
 import              Data.Void (Void)
 import qualified    Data.Void as Void
@@ -38,10 +40,12 @@ import qualified    Data.Void as Void
 ---------------------------------------------------------------------
 -- Internal Conveyor Datatype
 
+type Conveyor i o s u = ConveyorBody (Hybrid i o s u)
+
 -- |
 -- Conveyors move data linearly through various machines.
 -- 
-data Conveyor i o s u m r
+data Hybrid i o s u a
     -- |
     -- Convey a part on the belt downstream. The two fields of the
     -- constructor are respectively:
@@ -50,7 +54,7 @@ data Conveyor i o s u m r
     --
     --  (2) the state of the belt after moving the part.
     --
-    = Convey o (Conveyor i o s u m r)
+    = ConveyF o a
    
     -- |
     -- Install a machine on the conveyor.
@@ -67,25 +71,7 @@ data Conveyor i o s u m r
     --      after receiving a return value. But it can keep running
     --      independently of the upstream conveyor.
     -- 
-    | Machine
-        (i -> Conveyor i o s u m r)
-        (u -> Conveyor i o s u m r)
-    
-    -- |
-    -- The final product of this assembly stage.
-    -- 
-    -- This constructor indicates that everything upstream is done,
-    -- terminating with this as an overall result. Any downstream
-    -- machines that receive 'Finished' should not expect to receive
-    -- any other parts afterwards.
-    -- 
-    | Finished r
-    
-    -- |
-    -- Record a monadic action that needs to be performed when
-    -- running the conveyor.
-    -- 
-    | ConveyorM (m (Conveyor i o s u m r))
+    | MachineF (i -> a) (u -> a)
 
     -- |
     -- Place a spare part on the belt. Spares can be reused.
@@ -93,40 +79,29 @@ data Conveyor i o s u m r
     -- Similar to 'Convey', the second field represents the conveyor
     -- after the spare is removed from the belt.
     --
-    | Spare s (Conveyor i o s u m r)
+    | SpareF s a
 
 
-instance Monad m => Functor (Conveyor i o s u m) where
-    fmap = liftM
-    {-# INLINE fmap #-}
+pattern Convey :: o -> Conveyor i o s u m r -> Conveyor i o s u m r
+pattern Convey o a = OneThing (ConveyF o a)
 
-instance Monad m => Applicative (Conveyor i o s u m) where
-    pure  = Finished
-    {-# INLINE pure #-}
-    (<*>) = ap
-    {-# INLINE (<*>) #-}
+pattern Machine
+    :: (i -> Conveyor i o s u m r)
+    -> (u -> Conveyor i o s u m r)
+    -> Conveyor i o s u m r
+pattern Machine onInput onFinal = OneThing (MachineF onInput onFinal)
 
-instance Monad m => Monad (Conveyor i o s u m) where
-    return = pure
-    {-# INLINE return #-}
-    (>>=)  = bindConveyors
+pattern Spare :: s -> Conveyor i o s u m r -> Conveyor i o s u m r
+pattern Spare s a = OneThing (SpareF s a)
+
+{-# COMPLETE Convey, Machine, Effect, Finished, Spare #-}
 
 
----------------------------------------------------------------------
--- Conveyor Monad Transformer Instances
-
-instance MonadTrans (Conveyor i o s u) where
-    lift m = ConveyorM (Finished <$> m)
-    {-# INLINE [1] lift #-}
-    
-instance MonadIO m => MonadIO (Conveyor i o s u m) where
-    liftIO = lift . liftIO
-    {-# INLINE liftIO #-}
-
-instance MonadState s m => MonadState s (Conveyor i o l u m) where
-    get   = lift get
-    put   = lift . put
-    state = lift . state
+instance Functor (Hybrid i o s u) where
+    fmap f = \case
+        ConveyF  o a -> ConveyF o $ f a
+        MachineF i u -> MachineF (f . i) (f . u)
+        SpareF   s a -> SpareF s $ f a
 
 
 ---------------------------------------------------------------------
@@ -166,32 +141,7 @@ machineFrame f = go where
 
 
 ---------------------------------------------------------------------
--- Conveyor Composition and Fusion
-
--- |
--- Connect two conveyors end-to-end.
---
--- Runs the first conveyor until it produces a 'Finished' result, and
--- feeds that result into the input of the next conveyor function.
---
-bindConveyors
-    :: Monad m
-    => Conveyor i o s u m result0
-    -> (result0 -> Conveyor i o s u m result1)
-    -> Conveyor i o s u m result1
-
-bindConveyors conveyor machine = go conveyor where
-    go = \case
-        Convey o conveyor'
-            -> Convey o (go conveyor')
-        Machine onInput onFinal
-            -> Machine (go . onInput) (go . onFinal)
-        Finished result
-            -> machine result
-        ConveyorM action
-            -> ConveyorM (go <$> action)
-        Spare s conveyor'
-            -> Spare s (go conveyor')
+-- Hybrid Conveyor Fusion
  
 -- |
 -- Fuse two conveyors (conveyor A and conveyor B) into one.
@@ -216,8 +166,8 @@ fuseConveyors = runConveyorB where
         -- Conveying a finished product does nothing.
         Finished r
             -> Finished r
-        ConveyorM m
-            -> ConveyorM (continueB <$> m)
+        Effect m
+            -> Effect (continueB <$> m)
         Spare s _conveyorB'
             -> Void.absurd s
       where continueB = runConveyorB conveyorA
@@ -233,8 +183,8 @@ fuseConveyors = runConveyorB where
         -- machine on conveyor B.
         Finished r
             -> runConveyorB (Finished r) (onFinal r)
-        ConveyorM m
-            -> ConveyorM (continueA <$> m)
+        Effect m
+            -> Effect (continueA <$> m)
         -- Take spares off and continue.
         Spare s conveyorA'
             -> Spare s (continueA conveyorA')
@@ -257,7 +207,7 @@ runConveyor conveyor = case conveyor of
     Convey    o _       -> Void.absurd o
     Machine   _ onFinal -> runConveyor (onFinal ())
     Finished  result    -> pure result
-    ConveyorM m         -> m >>= runConveyor
+    Effect m            -> m >>= runConveyor
     Spare     s _       -> Void.absurd s
 
 {-# SCC runConveyor #-}
@@ -277,8 +227,8 @@ reuseSpares = go [] where
         = Machine (go [] . onInput) (go [] . onFinal)
     go _spares (Finished r)
         = Finished r
-    go spares (ConveyorM m)
-        = ConveyorM (go spares <$> m)
+    go spares (Effect m)
+        = Effect (go spares <$> m)
     go spares (Spare s conveyor)
         = go (s : spares) conveyor
 
