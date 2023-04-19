@@ -105,19 +105,20 @@ instance (Functor f, MonadState s m)
 --
 --  - Producer streams. These are the most basic kind of conveyors:
 --    they store data as-is so that it can be moved.
---    See 'Conveyor.Lazy.Conveyor' and 'Conveyor.Strict.Conveyor'.
+--    See @"Conveyor.Lazy".'Conveyor.Lazy.Conveyor'@ and
+--    @"Conveyor.Strict".'Conveyor.Strict.Conveyor'@.
 --
 --  - Consumer streams. Data that's been put into a consumer cannot
 --    be accessed from outside the conveyor, but it can influence
 --    the continuation. The only way to retrieve data from a pure
 --    consumer is by running the conveyor to get the finished result.
---    See 'Conveyor.Lazy.Consumer'.
+--    See @"Conveyor.Lazy".'Conveyor.Lazy.Consumer'@.
 --
 --  - Hybrid streams. Hybrids combine the capabilities of producers
 --    and consumers. Consumer-like steps input into the continuation
 --    from upstream, and producer-like steps output data that can be
 --    accessed downstream.
---    See 'Conveyor.Hybrid.Conveyor'.
+--    See @"Conveyor.Hybrid".'Conveyor.Hybrid.Consumer'@.
 
 
 ---------------------------------------------------------------------
